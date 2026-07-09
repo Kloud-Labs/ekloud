@@ -19,9 +19,30 @@ export interface Env {
 
 export default {
   async fetch(request: Request, env: Env, ctx: any): Promise<Response> {
+    // Temporarily disable /shop checkout + webhook while admins handle maintenance.
+    // This must block all relevant endpoints so nobody can use them.
+    const maintenance = true;
+
+    if (maintenance) {
+      const url = new URL(request.url);
+      const isStripeWebhook = request.method === 'POST' && /\/webhook\/?$/.test(url.pathname);
+      const isCheckoutCreate = request.method === 'POST';
+
+      if (isStripeWebhook || isCheckoutCreate) {
+        return new Response(
+          JSON.stringify({ error: 'Maintenance: shop/checkout temporarily disabled.' }),
+          {
+            status: 503,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+    }
+
     // NOTE: keep logs minimal in production.
     // Enable noisy logs only when DEBUG is enabled.
     const debug = env.DEBUG === 'true';
+
     if (debug) {
       console.log('=== Incoming request ===');
       console.log('Method:', request.method);
